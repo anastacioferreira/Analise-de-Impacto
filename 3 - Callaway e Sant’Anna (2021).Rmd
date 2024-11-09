@@ -1,0 +1,54 @@
+---
+title: "Callaway e Sant’Anna (2021)"
+author: "Anastácio Ferreira"
+date: "2024-10-19"
+output: html_document
+---
+
+1. DiD sem covariáveis
+```{r}
+data(mpdta)
+	
+# estimar os efeitos médios de tratamento por grupo e tempo sem covariáveis
+mw.attgt <- att_gt(yname = "lemp",
+                   gname = "first.treat",
+                   idname = "countyreal",
+                   tname = "year",
+                   xformla = ~1,
+                   data = mpdta)
+summary(mw.attgt)
+
+ggdid(mw.attgt, ylim = c(-.3, .3))
+```
+
+
+2. Efeitos médios agregados por grupo e tempo
+```{r}
+mw.dyn <- aggte(mw.attgt, type = "dynamic")
+summary(mw.dyn)
+
+ggdid(mw.dyn, ylim = c(-.3, .3))
+```
+
+
+3. Efeitos médios instantêneos
+```{r}
+mw.dyn.balance <- aggte(mw.attgt, type = "dynamic", balance_e = 1)
+summary(mw.dyn.balance)
+
+ggdid(mw.dyn.balance, ylim = c(-.3, .3))
+```
+
+
+4. DiD com covariáveis
+```{r}
+mw.attgt.X <- att_gt(yname = "lemp",
+                     gname = "first.treat",
+                     idname = "countyreal",
+                     tname = "year",
+                     xformla = ~lpop,
+                     data = mpdta)
+summary(mw.attgt.X)
+
+ggdid(mw.attgt.X, ylim = c(-.3, .3))
+```
