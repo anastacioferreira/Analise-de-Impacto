@@ -1,0 +1,136 @@
+---
+title: "Nunn (2008)"
+author: "Anastácio Ferreira"
+date: "2024-10-26"
+output: html_document
+---
+
+1. Parâmetros
+```{r setup, include=FALSE}
+lapply(c("knitr", "haven", "ggplot2", "stargazer", "AER", "ivmodel", "rmarkdown", "tinytex"), library, character.only = TRUE)
+opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+slave_data <- read_dta("slave_trade_QJE.dta")
+```
+
+
+2. Figura III: Relação entre PIB e exportação de escravos
+```{r}
+ggplot(slave_data, aes(x=ln_export_area, y=ln_maddison_pcgdp2000)) +
+  geom_point(shape=1) +
+  geom_text(label=slave_data$isocode) +
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("Relação entre Exportação de Escravos e PIB") +
+  xlab("log de exportação / área entre 1400-1900") +
+  ylab("log do PIB per capita em 2000")
+```
+
+
+3. Figura IV: gráfico da relação entre Densidade Populacional (como proxy para prosperidade econômica) e Exportação de Escravos
+```{r}
+ggplot(slave_data, aes(x=ln_pop_dens_1400, y=ln_export_area))+
+  geom_point(shape=1)+
+  geom_text(label=slave_data$isocode)+
+  geom_smooth(method=lm, se=FALSE)+
+  ggtitle("Relação entre Densidade Populacional Inicial e Exportação de Escravos")+
+  xlab("log da densidade populacional em 1400")+
+  ylab("exportação de escravos (log de exportação / área)")
+```
+
+
+4. Tabela IV: obter estimativas IV 2SLS de escravos/área em várias especificações
+```{r, results='asis'}
+# Segundo estágio
+  ## sem variáveis de controle
+ivreg1 <- ivreg(ln_maddison_pcgdp2000 ~ ln_export_area | saharan_distance_minimum + atlantic_distance_minimum + indian_distance_minimum + red_sea_distance_minimum, data = slave_data)
+
+  ## inclui efeitos fixos do colonizador
+ivreg2 <- ivreg(ln_maddison_pcgdp2000 ~ ln_export_area + colony1 + colony2 + colony3 + colony4 + colony5 + colony6 + colony7 | colony1 + colony2 + colony3 + colony4 + colony5 + colony6 + colony7 + saharan_distance_minimum + atlantic_distance_minimum + indian_distance_minimum + red_sea_distance_minimum, data = slave_data)
+
+  ## inclui efeitos fixos do colonizador e controles geográficos
+ivreg3 <- ivreg(ln_maddison_pcgdp2000 ~ ln_export_area + abs_latitude + longitude + rain_min + humid_max + low_temp + ln_coastline_area + colony1 + colony2 + colony3 + colony4 + colony5 + colony6 + colony7 | abs_latitude + longitude + rain_min + humid_max + low_temp + ln_coastline_area + colony1 + colony2 + colony3 + colony4 + colony5 + colony6 + colony7 + saharan_distance_minimum + atlantic_distance_minimum + indian_distance_minimum + red_sea_distance_minimum, data = slave_data)
+
+  ## inclui efeitos fixos do colonizador e controles geográficos, mas a amostra exclui ilhas e países da África do Norte
+remove_isl_and_north<- c('Morocco', 'Algeria', 'Tunisia', 'Libya', 'Egypt', 'Seychelles', 'Mauritius', 'Comoros', 'Sao Tome & Principe', 'Cape Verde Islands')
+restricted_sample <- slave_data[!slave_data$country %in% remove_isl_and_north,]
+ivreg4 <- ivreg(ln_maddison_pcgdp2000 ~ ln_export_area + abs_latitude + longitude + rain_min + humid_max + low_temp + ln_coastline_area +  colony1 + colony2 + colony3 + colony4 + colony5 + colony6 + colony7 | abs_latitude + longitude + rain_min + humid_max + low_temp + ln_coastline_area + colony1 + colony2 + colony3 + colony4 + colony5 + colony6 + colony7 + saharan_distance_minimum + atlantic_distance_minimum + indian_distance_minimum + red_sea_distance_minimum, data = restricted_sample)
+
+# Primeiro estágio
+stage1_1 <- lm(ln_export_area ~ saharan_distance_minimum + atlantic_distance_minimum + indian_distance_minimum + red_sea_distance_minimum, data = slave_data)
+
+stage1_2 <- lm(ln_export_area ~ saharan_distance_minimum + atlantic_distance_minimum + indian_distance_minimum + red_sea_distance_minimum + colony1 + colony2 + colony3 + colony4 + colony5 + colony6 + colony7, data = slave_data)
+
+stage1_3 <- lm(ln_export_area ~ saharan_distance_minimum + atlantic_distance_minimum + indian_distance_minimum + red_sea_distance_minimum + colony1 + colony2 + colony3 + colony4 + colony5 + colony6 + colony7 + abs_latitude + longitude + rain_min + humid_max + low_temp + ln_coastline_area, data = slave_data)
+
+stage1_4 <- lm(ln_export_area ~ saharan_distance_minimum + atlantic_distance_minimum + indian_distance_minimum + red_sea_distance_minimum + colony1 + colony2 + colony3 + colony4 + colony5 + colony6 + colony7 + abs_latitude + longitude + rain_min + humid_max + low_temp + ln_coastline_area, data = restricted_sample)
+```
+
+
+5. Testes de Diagnóstico
+```{r, warning=FALSE}
+# P-valor do teste de Hausman
+pvH_1 <- round(summary(ivreg1, diagnostics = TRUE)$diagnostics[2, 4], digits = 2)
+pvH_2 <- round(summary(ivreg2, diagnostics = TRUE)$diagnostics[2, 4], digits = 2)
+pvH_3 <- round(summary(ivreg3, diagnostics = TRUE)$diagnostics[2, 4], digits = 2)
+pvH_4 <- round(summary(ivreg4, diagnostics = TRUE)$diagnostics[2, 4], digits = 2)
+
+# P-valor do teste de Sargan
+pvS_1 <- round(summary(ivreg1, diagnostics = TRUE)$diagnostics[3, 4], digits = 2)
+pvS_2 <- round(summary(ivreg2, diagnostics = TRUE)$diagnostics[3, 4], digits = 2)
+pvS_3 <- round(summary(ivreg3, diagnostics = TRUE)$diagnostics[3, 4], digits = 2)
+pvS_4 <- round(summary(ivreg4, diagnostics = TRUE)$diagnostics[3, 4], digits = 2)
+
+# Gerar tabela - painel 1/2
+stargazer(ivreg1, ivreg2, ivreg3, ivreg4,
+          header = FALSE,
+          digits = 3,
+          omit.table.layout = "n",
+          title = "Estimativas da relação entre Exportações de Escravos e Renda",
+          type = "text",  # alterar para "text"
+          dep.var.labels.include = FALSE,
+          summary = TRUE,
+          dep.var.caption = "Segundo Estágio. A variável dependente é a renda logarítmica em 2000, ln y",
+          omit = c('colony1', 'colony2', 'colony3', 'colony4', 'colony5', 'colony6', 'colony7', 'Constant', 'abs_latitude', 'longitude', 'rain_min', 'humid_max', 'low_temp', 'ln_coastline_area'),
+          add.lines = list(c('Efeitos fixos do colonizador', "Não", "Sim", "Sim", "Sim"),
+                           c('Controles geográficos', "Não", "Não", "Sim", "Sim"),
+                           c('Amostra restrita', "Não", "Não", "Não", "Sim")))
+
+# Gerar tabela - painel 2/2
+stargazer(stage1_1,stage1_2,stage1_3,stage1_4,
+          header = FALSE,
+          digits = 3,
+          type = "text",
+          dep.var.labels.include = FALSE,
+          summary=TRUE,
+          dep.var.caption = "Primeiro Estágio. A variável dependente são as exportações de escravos, ln(exportações/área)",
+          omit=c('colony1', 'colony2', 'colony3', 'colony4', 'colony5', 'colony6', 'colony7', 'Constant', 'abs_latitude', 'longitude', 'rain_min', 'humid_max', 'low_temp', 'ln_coastline_area'),
+          add.lines=list(c('Efeitos fixos do colonizador', "Não", "Sim", "Sim", "Sim"),
+                         c('Controles geográficos',"Não", "Não", "Sim", "Sim"),
+                         c('Amostra restrita',"Não", "Não", "Não", "Sim"),
+                         c('Teste de Hausman (p-valor)', pvH_1, pvH_2, pvH_3, pvH_4),
+                         c('Teste de Sargan (p-valor)', pvS_1, pvS_2, pvS_3, pvS_4)))
+```
+
+
+6. Canais pelos quais o comércio de escravos pode ter afetado o desenvolvimento econômico
+  6.1. Figura VI: o comércio de escravos tendia a enfraquecer os laços entre as aldeias.
+```{r}
+ggplot(slave_data, aes(x=ln_export_area, y=ethnic_fractionalization)) +
+  geom_point(shape=1) +
+  geom_text(label=slave_data$isocode) +
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("Relação entre Exportações de Escravos e Fragmentação Étnica Atual") +
+  xlab("log de exportação / área") +
+  ylab("Fragmentação étnica (Alesina, 2003)")
+```
+
+  6.2. Figura VII: o comércio de escravos está ligado ao enfraquecimento e subdesenvolvimento dos estados
+```{r}
+ggplot(slave_data, aes(x=ln_export_area, y=state_dev)) +
+  geom_point(shape=1) +
+  geom_text(label=slave_data$isocode) +
+  geom_smooth(method=lm, se=FALSE) +
+  ggtitle("Relação entre Exportações de Escravos e Desenvolvimento do Estado no Século XIX") +
+  xlab("log de exportação / área") +
+  ylab("Desenvolvimento do Estado no século XIX (Gennaioli & Rainer, 2006)")
+```
