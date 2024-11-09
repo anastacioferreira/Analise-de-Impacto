@@ -1,0 +1,152 @@
+---
+title: "Cattaneo, Frandsen e Titiunik (2015)"
+author: "Anastácio Ferreira"
+date: "2024-10-19"
+output: html_document
+---
+
+1. Parâmetros
+```{r}
+lapply(c("foreign", "ggplot2", "lpdensity", "rddensity", "rdrobust", "rdlocrand", "TeachingDemos", "haven"), library, character.only = TRUE)
+
+options(width = 300)
+par(mar = rep(2, 4))
+
+# Ler arquivo diretamento do Github
+data <- read_dta("https://github.com/rdpackages-replication/CIT_2020_CUP/raw/master/CIT_2020_CUP_senate.dta")
+
+Y = data$demvoteshfor2
+X = data$demmv
+T = (X >= 0)
+```
+
+
+2. Sessão 2 - O Modelo Canônico de Desenho RD Sharp
+```{r}
+# Figura 3a - Comparação bruta de médias
+rdplot(Y, X, nbins = c(2500, 500), p = 0, col.lines = "red", col.dots = "lightgray", title = "", y.lim = c(0,100))
+
+# Figura 3b - Comparação local de médias
+rdplot(Y[abs(X) <= 50], X[abs(X) <= 50], nbins = c(2500, 500), p = 4, col.lines = "red", col.dots = "lightgray", title = "", y.lim = c(0,100))
+```
+
+
+3. Sessão 3 - Plots RD
+```{r}
+# Figura 5 - Gráfico de dispersão
+plot(X, Y, xlab = "Pontuação", ylab = "Resultado", col = 1, pch = 20)
+abline(v = 0)
+
+# Figura 6 - Gráfico RD usando 40 intervalos de comprimento igual
+out <- rdplot(Y, X, nbins = c(20,20), binselect = 'esmv')
+summary(out)
+
+# Figura 7a - 40 Intervalos igualmente espaçados
+out <- rdplot(Y, X, nbins = c(20,20), binselect = 'es')
+
+# Figura 7b - 40 Intervalos espaçados por quantis
+out <- rdplot(Y, X, nbins = c(20,20), binselect = 'qs', x.lim = c(-100,100))
+
+# Figura 8 - Gráfico RD IMSE com intervalos igualmente espaçados
+out <- rdplot(Y, X, binselect = 'es', x.lim = c(-100,100))
+
+# Figura 9 - Gráfico RD IMSE com intervalos espaçados por quantis
+out <- rdplot(Y, X, binselect = 'qs', x.lim = c(-100,100))
+
+# Figura 10 - Gráfico RD com variância mimética e intervalos igualmente espaçados
+out <- rdplot(Y, X, binselect = 'esmv')
+
+# Figura 11 - Gráfico RD com variância mimética e intervalos espaçados por quantis
+out <- rdplot(Y, X, binselect = 'qsmv', x.lim = c(-100,100))
+```
+
+4. Sessão 4 - Abordagem Baseada em Continuidade para Análise RD
+```{r}
+# rdrobust pode utilizar pesos uniformes ou triangulares
+out <- rdrobust(Y, X, kernel = 'uniform',  p = 1, h = 10)
+out <- rdrobust(Y, X, kernel = 'triangular',  p = 1, h = 10)
+
+# rdrobust pode variar de polimôminio (p)
+out <- rdrobust(Y, X, kernel = 'triangular',  p = 2, h = 10)
+
+# rdbwselect com largura de banda mserd ou msetwo
+out <- rdbwselect(Y, X, kernel = 'triangular',  p = 1, bwselect = 'mserd')
+out <- rdbwselect(Y, X, kernel = 'triangular',  p = 1, bwselect = 'msetwo')
+
+# rdrobust para mostrar os objetos que ele retorna
+rdout <- rdrobust(Y, X, kernel = 'triangular', p = 1, bwselect = 'mserd')
+print(names(rdout))
+print(rdout$beta_Y_p_r)
+print(rdout$beta_Y_p_l)
+
+# Figura 15 - Usando rdrobust e mostrando o rdplot associado
+bandwidth <- rdrobust(Y, X, kernel = 'triangular', p = 1, bwselect = 'mserd')$bws[1,1]
+out <- rdplot(Y[abs(X) <= bandwidth], X[abs(X) <= bandwidth], p = 1, kernel = 'triangular')
+
+# R Snippet 20 - Usando rdrobust sem termo de regularização
+out <- rdrobust(Y, X, kernel = 'triangular', scaleregul = 0,  p = 1, bwselect = 'mserd')
+
+# R Snippet 22 - Usando rdrobust com opções padrão e mostrando todo o resultado
+out <- rdrobust(Y, X, kernel = 'triangular',  p = 1, bwselect = 'mserd', all = TRUE)
+
+# R Snippet 23 - Usando rdrobust com largura de banda cerrd
+out <- rdrobust(Y, X, kernel = 'triangular', p = 1, bwselect = 'cerrd')
+
+# R Snippet 24 - Usando rdbwselect com todas as larguras de banda
+out <- rdbwselect(Y, X, kernel = 'triangular', p = 1, all = TRUE)
+
+# R Snippet 25 - Usando rdbwselect com covariáveis
+Z <- data[,c("presdemvoteshlag1", "demvoteshlag1", "demvoteshlag2", "demwinprv1", "demwinprv2", "dmidterm", "dpresdem", "dopen")]
+out <- rdbwselect(Y, X, covs = Z, kernel = 'triangular', scaleregul = 1, p = 1, bwselect = 'mserd')
+
+# R Snippet 26 - Usando rdrobust com covariáveis
+out <- rdrobust(Y, X, covs = Z, kernel = 'triangular', scaleregul = 1, p = 1, bwselect = 'mserd')
+```
+
+5. Validação e Falsificação do Desenho RD
+```{r}
+# Figura 16 - Gráficos RD para covariáveis pré-determinadas
+for (i in 1:ncol(Z)) {rdplot(Z[, i], X, x.label = "Pontuação", y.label = "", title = "")}
+
+# R Snippet 29 - Usando rdrobust em demvoteshlag1
+out <- rdrobust(data$demvoteshlag1, X)
+
+# Definindo xlim
+xlim <- ceiling(bandwidth)
+
+#R Snippet 30 - Usando rdplot para mostrar o efeito rdrobust em demvoteshlag1
+bandwidth <- rdrobust(data$demvoteshlag1, X)$bws[1,1]
+rdplot(data$demvoteshlag1[abs(X) <= bandwidth], X[abs(X) <= bandwidth], p = 1, kernel = 'triangular', x.lim = c(-xlim, xlim), x.label = "Pontuação", y.label = "", title = "")
+
+# Figura 17 - Efeitos RD linear local para covariáveis pré-determinadas
+for (var in colnames(Z)) {
+  bandwidth <- rdrobust(data[[var]], X)$bws[1, 1]
+  rdplot(data[[var]][abs(X) <= bandwidth], X[abs(X) <= bandwidth], p = 1, kernel = 'triangular', x.lim = c(-xlim, xlim), x.label = "Pontuação", y.label = "", title = "")}
+
+# R Snippet 31 - Teste binomial
+binom.test(52, 102, 1/2)
+
+# R Snippet 32 - Usando rddensity
+out <- rddensity(X)
+summary(out)
+
+# Figura 19a - Histograma
+bw_left <- as.numeric(rddensity(X)$h[1]); bw_right = as.numeric(rddensity(X)$h[2]);
+tempdata <- as.data.frame(X); colnames(tempdata) = c("v1");
+
+plot2 <- ggplot(data=tempdata, aes(tempdata$v1)) + geom_histogram(data = tempdata, aes(x = v1, y= ..count..), breaks = seq(-bw_left, 0, 1), fill = "blue", col = "black", alpha = 1) + geom_histogram(data = tempdata, aes(x = v1, y= ..count..), breaks = seq(0, bw_right, 1), fill = "red", col = "black", alpha = 1) + labs(x = "Pontuação", y = "Número de Observações") + geom_vline(xintercept = 0, color = "black") + theme_bw()
+plot2
+
+# Figura 19b - Densidade Estimada
+est1 <- lpdensity(data = X[X < 0 & X >= -bw_left], grid = seq(-bw_left, 0, 0.1), bwselect = "IMSE", scale = sum(X < 0 & X >= -bw_left) / length(X))
+est2 <- lpdensity(data = X[X >= 0 & X <= bw_right], grid = seq(0, bw_right, 0.1), bwselect = "IMSE", scale = sum(X >= 0 & X <= bw_right) / length(X))
+
+plot1 <- lpdensity.plot(est1, est2, CIshade = 0.2, lcol = c(4, 2), CIcol = c(4, 2), legendGroups = c("Controle", "Tratamento")) + labs(x = "Pontuação", y = "Densidade") + geom_vline(xintercept = 0, color = "black") + theme_bw()
+plot1
+
+# R Snippet 33 - Usando rdrobust com o limite igual a 1
+out <- rdrobust(Y[X >= 0], X[X >= 0], c = 1)
+
+# R Snippet 34 - Usando rdrobust para a abordagem do buraco de rosquinha
+out <- rdrobust(Y[abs(X) >= 0.3], X[abs(X) >= 0.3])
+```
