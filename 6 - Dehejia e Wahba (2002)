@@ -1,0 +1,114 @@
+---
+title: "Dehejia e Wahba (2002)"
+author: "Anastácio Ferreira"
+date: "2024-11-07"
+output: html_document
+---
+
+1. Abrir e organizar bases
+```{r}
+library(haven)
+library(dplyr)
+
+data_nsw <- as.data.frame(read_dta("nsw_dw.dta"))
+data_cps <- as.data.frame(read_dta("cps_controls.dta"))
+data_psid <- as.data.frame(read_dta("psid_controls.dta"))
+
+data_list <- list(data_nsw = data_nsw, data_cps = data_cps, data_psid = data_psid) %>%
+  lapply(function(df) {
+    df %>%
+      mutate(
+        u74 = case_when(re74 == 0 ~ 1, TRUE ~ 0),
+        u75 = case_when(re75 == 0 ~ 1, TRUE ~ 0)) %>%
+      select(-data_id)})  # Removendo a coluna data_id
+list2env(data_list, envir = .GlobalEnv)
+```
+
+
+2. Juntando NSW-CPS e NSW-PSID
+```{r}
+data_nsw_cps  <- subset(data_nsw,treat!= 0)
+data_nsw_psid <- subset(data_nsw,treat!= 0) 
+data_nsw_cps  <- rbind(data_cps, data_nsw_cps) # Juntando NSW e CPS
+data_nsw_psid <- rbind(data_psid, data_nsw_psid) # Juntando NSW e PSID
+```
+
+
+3. Tabela 1 - Conjunto de Dados NSW
+```{r}
+library(tidyverse)
+library(tibble)
+
+table1 <- data_nsw %>%
+  group_by(treat) %>%
+  summarize(across(everything(), list(mean=mean,sd = sd), na.rm = TRUE))
+table1 = subset(table1, select = -c(treat))
+
+add_column(table1, Treatment_status = 0:1, .after = 0)
+
+final_table1    <- t(table1)
+Covariate_table <- as.data.frame(final_table1)
+Covariate_table # V1 = Controls; V2 :: Treated
+```
+
+
+5. Tabela 2 - Calculando escores de propensão para as amostras NSW e CPS
+```{r}
+formula1 <- treat ~ age + I(age^2) + I(age^3) + education + I(education^2) + married + nodegree + black + hispanic + re74 + re75 + u74 + u75 + education*re74
+prop_score_nsw <- glm(formula1, family = binomial(), data = data_nsw)
+prsrnsw_df <- data.frame(pr_score = predict(prop_score_nsw, type = "response"), treat_status = prop_score_nsw$model$treat) # escores de propensão para nsw
+
+prop_score_nsw_cps <- glm(formula1, family = binomial(), data = data_nsw_cps)
+prsrnswcps_df <- data.frame(pr_score = predict(prop_score_nsw_cps, type = "response"),treat_status = prop_score_nsw_cps$model$treat) # escores de propensão para nsw_cps
+
+x1 = mean(prsrnsw_df$pr_score)
+x2 = mean(prsrnswcps_df$pr_score)
+sprintf("A média do escore de propensão do conjunto de dados NSW é: %f", x1 )  
+sprintf("A média do escore de propensão do conjunto de dados NSW_CPS é: %f", x2)  
+```
+
+
+6. Tabela 3 - Calculando escores de propensão para as amostras NSW e PSID
+```{r}
+formula2 <- treat ~ age + I(age^2) + education + I(education^2) + married + nodegree + black + hispanic + re74 + re75 + I(re74^2) + I(re75^2) + u74 + u75 + u74 * hispanic
+prp_score_nsw_psid <- glm(formula2, family = binomial(), data = data_nsw_psid)
+prsnswpsid_df <- data.frame(pr_score = predict(prp_score_nsw_psid, type = "response"), treat_status = prp_score_nsw_psid$model$treat)
+
+prp_score_nsw <- glm(formula2, family = binomial(), data = data_nsw)
+prsnsw_df <- data.frame(pr_score = predict(prp_score_nsw, type = "response"), treat_status = prp_score_nsw$model$treat) # escores de propoensão para nsw dataset
+
+x3 = mean(prsnsw_df$pr_score)
+x4 = mean(prsnswpsid_df$pr_score)
+sprintf("A média do escore de propensão do conjunto de dados NSW é: %f" ,x3 )  
+sprintf("A média do escore de propensão do conjunto de dados NSW_PSID é: %f" ,x4)
+```
+
+
+7. Matching
+```{r}
+library(MatchIt)
+formula3 <- treat ~ age + education + black + hispanic + married + nodegree + re74 + re75 + u74 + u75
+reg1 <- matchit(formula3, data = data_nsw, method = "nearest", distance = "glm", estimand = "ATT")
+reg2 <- matchit(formula3, data = data_nsw_cps, method = "nearest", distance = "glm", estimand = "ATT")
+reg3 <- matchit(formula3, data = data_nsw_psid, method = "nearest", distance = "glm", estimand = "ATT")
+
+# Dataframe para os dados pareados
+dataframeNSW <- match.data(reg1, group = "all", distance = "prop.score", data = data_nsw)
+dataframeNSWCPS <- match.data(reg2, group = "all", distance = "prop.score", data = data_nsw_cps)
+dataframeNSWPSID <- match.data(reg3, group = "all", distance = "prop.score", data = data_nsw_psid)
+```
+
+
+8. Efeitos de Tratamento
+```{r}
+formula <- re78 ~ treat + age + education + black + hispanic + married + nodegree + re74 + re75 + u74 + u75
+treat_reg_1 <- lm(formula, data = dataframeNSW)
+treat_reg_2 <- lm(formula, data = dataframeNSWCPS)
+treat_reg_3 <- lm(formula, data = dataframeNSWPSID)
+
+library(sjmisc)
+library(sjlabelled)
+library(sjPlot)
+
+tab_model(treat_reg_1, treat_reg_2, treat_reg_3, terms = c("treat"), show.ci = FALSE, show.se = TRUE, auto.label = TRUE, dv.labels = c("NSW", "NSW_CPS", "NSW_PSID"))
+```
