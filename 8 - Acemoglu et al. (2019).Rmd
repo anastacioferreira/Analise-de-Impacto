@@ -1,0 +1,270 @@
+---
+title: "Acemoglu et al. (2019)"
+author: "Anastácio Ferreira"
+date: "2024-10-27"
+output: html_document
+---
+
+1. Carregar dados
+```{r}
+library(plm)
+library(tidyverse)
+library(haven)
+library(dplyr)
+
+DDCGdata <- read_dta("DDCGdata.dta")
+
+DDCGdata <- DDCGdata %>%
+  select(1:30)
+```
+
+
+2. Criar lags do PIB
+```{r}
+DDCGdata <- DDCGdata %>%
+  group_by(country_name) %>%
+  mutate(
+    lag1 = lag(y, 1),
+    lag2 = lag(y, 2),
+    lag3 = lag(y, 3),
+    lag4 = lag(y, 4),
+    lag5 = lag(y, 5),
+    lag6 = lag(y, 6),
+    lag7 = lag(y, 7),
+    lag8 = lag(y, 8))
+
+pDDCGdata = pdata.frame(DDCGdata, index=c("country_name", "year"))
+```
+
+
+3. Estimando o Modelo linear dinâmico
+```{r}
+# Modelo 1 - 1 lag
+model1 <- plm(
+  y ~ dem + lag1, # equação com efeitos fixos de país
+  model="within", # estimador de feitos fixos "within" 
+  data = pDDCGdata, 
+  effect = "twoways")
+summary(model1)
+
+# Modelo 2 - 2 lags
+model2 <- plm(
+  y ~ dem + lag1 + lag2 , 
+  model="within", 
+  data = pDDCGdata, 
+  effect = "twoways")
+summary(model2)
+
+# Modelo 3 - 4 lags
+model3 <- plm(
+  y ~ dem + lag1 + lag2 + lag3 + lag4,
+  model="within", 
+  data = pDDCGdata, 
+  effect = "twoways")
+summary(model3)
+
+# Modelo 4 - 8 lags
+model4 <- plm(
+  y ~ dem + lag1 + lag2 + lag3 + lag4 + lag5 + lag6 + lag7 + lag8, 
+  model="within", 
+  data = pDDCGdata, 
+  effect = "twoways")
+summary(model4)
+```
+
+
+4. Tabela de Efeitos Fixos - Efeitos de longo prazo para os diferentes modelos
+```{r}
+library(plm)
+library(stargazer)
+
+# Modelo 1
+beta_chapeu <- coef(model1)["dem"]
+gamma_chapeu <- coef(model1)["lag1"]
+ef_longo_prazo_1 <- beta_chapeu / (1 - sum(gamma_chapeu))
+
+# Modelo 2
+beta_chapeu <- coef(model2)["dem"]
+gamma_chapeu <- (coef(model2)[2:3])
+ef_longo_prazo_2 <- beta_chapeu / (1 - sum(gamma_chapeu))
+
+# Modelo 3
+beta_chapeu <- coef(model3)["dem"]
+gamma_chapeu <- (coef(model3)[2:5])
+ef_longo_prazo_3 <- beta_chapeu / (1 - sum(gamma_chapeu))
+
+# Modelo 4
+beta_chapeu <- coef(model4)["dem"]
+gamma_chapeu <- (coef(model4)[2:9])
+ef_longo_prazo_4 <- beta_chapeu / (1 - sum(gamma_chapeu))
+
+# Todos os modelos
+lre <- c(ef_longo_prazo_1, ef_longo_prazo_2, ef_longo_prazo_3, ef_longo_prazo_4)
+lre <- round(lre, 3)
+lre
+```
+
+
+5. Persistência da democracia para os diferentes modelos
+```{r}
+pers1 <- sum(coef(model1)[2])
+pers2 <- sum(coef(model2)[2:3])
+pers3 <- sum(coef(model3)[2:5])
+pers4 <- sum(coef(model4)[2:9])
+
+pers <- c(pers1, pers2, pers3, pers4)
+pers <- round(pers, 3)
+pers
+```
+
+
+6. Efeito depois de 25 anos
+```{r}
+# Modelo 1
+dem_curto_prazo <- coef(model1)["dem"]
+lag1 <- (coef(model1)[2])
+ efeito1 <- dem_curto_prazo
+ efeito2 <- (efeito1 * lag1) + dem_curto_prazo
+ efeitos <- c(efeito1, efeito2)
+   for (i in 3:30) {
+    eff <- (efeitos[i-1] * lag1) + efeitos[1]
+    efeitos <- c(efeitos, eff)}
+      ef_25_1 <- efeitos[25]
+
+# Modelo 2
+dem_curto_prazo <- coef(model2)["dem"]
+lag1 <- (coef(model2)[2])
+lag2 <- (coef(model2)[3])
+ efeito1 <- dem_curto_prazo
+ efeito2 <- (efeito1 * lag1) + dem_curto_prazo
+ efeito3 <- (efeito2 * lag1) + (efeito1 * lag2) + dem_curto_prazo
+ efeitos <- c(efeito1, efeito2, efeito3)
+  for (i in 4:30) {
+   ef <- (efeitos[i-1] * lag1) + (efeitos[i-2] * lag2) + dem_curto_prazo
+   efeitos <- c(efeitos, ef)}
+    ef_25_2 <- efeitos[25]
+
+# Modelo 3
+dem_curto_prazo <- coef(model3)["dem"]
+lag1 <- (coef(model3)[2])
+lag2 <- (coef(model3)[3])
+lag3 <- (coef(model3)[4])
+lag4 <- (coef(model3)[5])
+ efeito1 <- dem_curto_prazo
+ efeito2 <- (efeito1 * lag1) + dem_curto_prazo
+ efeito3 <- (efeito2 * lag1) + (efeito1 * lag2) + dem_curto_prazo
+ efeito4 <- (efeito3 * lag1) + (efeito2 * lag2) + (efeito1 * lag3) + dem_curto_prazo
+ efeitos <- c(efeito1,efeito2, efeito3, efeito4)
+  for (i in 5:30) {
+   ef <- (efeitos[i-1] * lag1) + (efeitos[i-2] * lag2) + (efeitos[i-3] * lag3) + (efeitos[i-4] * lag4) + dem_curto_prazo
+   efeitos <- c(efeitos, ef)}
+    ef_25_3 <- efeitos[25]
+
+# Modelo 4
+dem_curto_prazo <- coef(model4)["dem"]
+lag1 <- (coef(model4)[2])
+lag2 <- (coef(model4)[3])
+lag3 <- (coef(model4)[4])
+lag4 <- (coef(model4)[5])
+lag5 <- (coef(model4)[6])
+lag6 <- (coef(model4)[7])
+lag7 <- (coef(model4)[8])
+lag8 <- (coef(model4)[9])
+ efeito1 <- dem_curto_prazo
+ efeito2 <- (efeito1 * lag1) + dem_curto_prazo
+ efeito3 <- (efeito2 * lag1) + (efeito1 * lag2) + dem_curto_prazo
+ efeito4 <- (efeito3 * lag1) + (efeito2 * lag2) + (efeito1 * lag3) + dem_curto_prazo
+ efeito5 <- (efeito4 * lag1) + (efeito3 * lag2) + (efeito2 * lag3) + (efeito1 * lag4) + dem_curto_prazo
+ efeito6 <- (efeito5 * lag1) + (efeito4 * lag2) + (efeito3 * lag3) + (efeito2 * lag4) + (efeito1 * lag5) + dem_curto_prazo
+ efeito7 <- (efeito6 * lag1) + (efeito5 * lag2) + (efeito4 * lag3) + (efeito3 * lag4) + (efeito2 * lag5) + (efeito1 * lag6) + dem_curto_prazo
+ efeito8 <- (efeito7 * lag1) + (efeito6 * lag2) + (efeito5 * lag3) + (efeito4 * lag4) + (efeito3 * lag5) + (efeito2 * lag6) + (efeito1 * lag7) + dem_curto_prazo
+ efeitos <- c(efeito1, efeito2, efeito3, efeito4, efeito5, efeito6, efeito7, efeito8)
+  for (i in 9:30) {
+   ef <- (efeitos[i-1] * lag1) + (efeitos[i-2] * lag2) + (efeitos[i-3] * lag3) + (efeitos[i-4] * lag4) + (efeitos[i-5] * lag5) + (efeitos[i-6] * lag6) + (efeitos[i-7] * lag7) + (efeitos[i-8] * lag8) + dem_curto_prazo
+   efeitos <- c(efeitos, ef)}
+    ef_25_4 <- efeitos[25]
+     ef_25 <- round(c(ef_25_1, ef_25_2, ef_25_3, ef_25_4),3)
+     ef_25
+```
+
+
+7. Tabela de feitos fixos
+```{r, warning=FALSE}
+stargazer(list(model1, model2, model3, model4), 
+          type = "text", 
+          title = "Efeito da democracia no (Log) do PIB per capita", 
+          dep.var.labels = "Log do PIB per capita",  
+          covariate.labels = c("Democracia"),
+          omit.stat = c("ser", "f","adj.rsq"), 
+          keep.stat = c("n", "N"), # manter observações
+          omit = c("lag6", "lag7", "lag8"),
+          model.numbers = FALSE, # remove números do modelo 
+          column.labels = c("(1)", "(2)", "(3)", "(4)"), # rótulos de coluna
+          add.lines = list( # linhas para persistência, efeito de longo prazo e efeito após 25 anos
+            c("Persistência: ", pers), 
+            c("Efeito de longo prazo: ", lre),
+            c("Efeito depois de 25 anos: ", ef_25)),
+          notes = "A constante relatada para democracia é multiplicada por 100.",
+          notes.append = FALSE) # adiciona notas no final da tabela
+```
+
+
+8. Figura 2 - Tendência
+```{r}
+library(ggplot2)
+library(plm)
+
+# Estimativa de tendência (modelo 3)
+dem_curto_prazo <- coef(model3)["dem"]
+lag1 <- (coef(model3)[2])
+lag2 <- (coef(model3)[3])
+lag3 <- (coef(model3)[4])
+lag4 <- (coef(model3)[5])
+
+efeito1 <- dem_curto_prazo
+efeito2 <- (efeito1 * lag1) + dem_curto_prazo
+efeito3 <- (efeito2 * lag1) + (efeito1 * lag2) + dem_curto_prazo
+efeito4 <- (efeito3 * lag1) + (efeito2 * lag2) + (efeito1 * lag3) + dem_curto_prazo
+efeitos <- c(efeito1,efeito2, efeito3, efeito4)
+
+for (i in 5:30) {
+  ef <- (efeitos[i-1] * lag1) + (efeitos[i-2] * lag2) + (efeitos[i-3] * lag3) + (efeitos[i-4] * lag4) + dem_curto_prazo
+  efeitos <- c(efeitos, ef)}
+
+# Erro padrão
+SE_estimate <- summary(model3)$coeficients[1, 2] #1 = coeficiente, 2 = erro padrão
+
+SE1 <- SE_estimate
+SE2 <- (SE1 * lag1) + SE_estimate
+SE3 <- (SE2 * lag1) + (SE1 * lag2) + SE_estimate
+SE4 <- (SE3 * lag1) + (SE2 * lag2) + (SE1 * lag3) + SE_estimate
+SEs <- c(SE1, SE2, SE3, SE4)
+
+for (i in 5:30) {
+  SEi <- (SEs[i-1] * lag1) + (SEs[i-2] * lag2) + (SEs[i-3] * lag3) + (SEs[i-4] * lag4) + SEs[1]
+  SEs <- append(SEs, SEi)}
+
+# Intervalos de confiança de 95% (1.96)
+upper <- vector()
+lower <- vector()
+for (i in 1:30) {
+  upper <- append(upper, efeitos[i] + (1.96 * SEs[i]))
+  lower <- append(lower, efeitos[i] - (1.96 * SEs[i]))}
+
+# Gráfico
+trend <- data.frame(efeitos, upper, lower) # dataframe com intervalos de confiança superior e inferior
+trend
+fig_trend <- ggplot(trend, aes(x = 1:30, y = efeitos)) +
+  geom_line() + # estimativa da tendência
+  geom_line(aes(y = upper), linetype = "dashed") + # intervalo de confiança superior
+  geom_line(aes(y = lower), linetype = "dashed") + # intervalo de confiança inferior
+  geom_hline(yintercept = seq(0,30,10), color="gray") + # linhas horizontais 
+  labs(
+    x = "Anos desde a Democratização",  # rótulo do eixo x
+    y = "Mudança em Log Pontos do PIB per Capita") +  # rótulo do eixo y
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + # desabilitar a grade
+  theme_classic() # para estilo como no artigo
+
+ggsave("FigureTrend.png", fig_trend, width = 8, height = 5, units = "in")
+print(fig_trend)
+```
