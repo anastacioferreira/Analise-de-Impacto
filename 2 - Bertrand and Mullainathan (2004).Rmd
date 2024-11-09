@@ -1,0 +1,75 @@
+---
+title: "Bertrand and Mullainathan (2004)"
+author: "Anastácio Ferreira"
+date: "2024-10-16"
+output: html_document
+---
+
+1. Abrir bases
+```{r}
+#install.packages("openintro")
+
+library(openintro)
+library(dplyr)
+lbmarket <- labor_market_discrimination
+
+# Criando colunas "female" e "black"
+lbmarket <- lbmarket %>% 
+  mutate(female = (sex == 'f'), 
+         black = (race == 'b')) 
+```
+
+2. Análise de balanceamento
+```{r}
+# Sexo
+lbmarket %>%  
+  group_by(black) %>% 
+  summarize(n_female = sum(female))
+
+# Habilidades computacionais
+lbmarket %>%  
+  group_by(black) %>% 
+  summarize(avg_computerskills = mean(computer_skills))
+
+# Número de empregos | Educação
+lbmarket %>% 
+  group_by(black) %>% 
+  summarize(avg_numjobs = mean(n_jobs), avg_educ = mean(education))
+
+# Média e desvio padrão dos anos de experiência
+lbmarket %>%  
+  group_by(black) %>% 
+  summarize(avg_exp = mean(years_exp), sd_exp = sd(years_exp))
+
+# Desbalanceamento por sexo
+lbmarket %>%  
+  group_by(female) %>% 
+  summarize(avg_computerskills = mean(computer_skills),
+            avg_educ = mean(education))
+```
+
+3. Análise das Taxas de Retorno de Currículos 
+```{r}
+# Taxa média de retorno para todos os currículos
+lbmarket %>%  
+  summarize(avg_callback = mean(call))
+
+# Taxas médias de retorno separadamente para currículos com nomes “brancos” e “negros”
+lbmarket %>%  
+  group_by(black) %>% 
+  summarize(avg_callback = mean(call))
+
+# Taxas médias para cada combinação de raça e sexo 
+lbmarket %>%  
+  group_by(female, black) %>% 
+  summarize(avg_callback = mean(call))
+
+# Teste com hipótese nula de que não há diferença nas taxas de retorno entre nomes negros e brancos
+call_black <- lbmarket %>% 
+  filter(race == 'b') %>% 
+  pull(call)
+call_white <- lbmarket %>% 
+  filter(race == 'w') %>% 
+  pull(call)
+t.test(call_black, call_white)
+```
