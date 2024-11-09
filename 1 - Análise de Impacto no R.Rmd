@@ -1,0 +1,590 @@
+---
+title: "Análise de Impacto no R"
+author: "Anastácio Ferreira"
+date: "2024-10-16"
+output: html_document
+---
+
+2.
+2.1.
+A)
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+# Clima (variável não observada, afeta as duas outras variáveis)
+clima <- rnorm(tamanho_amostra, mean = 25, sd = 5)
+
+# Venda de sorvetes (afetada pelo clima)
+vendas_sorvete <- 2 * clima + rnorm(tamanho_amostra)
+
+# Afogamentos (também afetado pelo clima, mas sem relação direta com sorvetes)
+afogamentos <- 1.5 * clima + rnorm(tamanho_amostra)
+
+# Criar um data frame com os dados simulados
+dados <- data.frame(vendas_sorvete, afogamentos)
+
+# Verificar a correlação entre vendas de sorvete e afogamentos
+cor(dados$vendas_sorvete, dados$afogamentos)
+```
+
+B)
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+# Transferência de renda (1 = tratamento, 0 = controle)
+tratamento <- rbinom(tamanho_amostra, 1, 0.5)
+
+# Saúde infantil (resultado afetado pelo tratamento)
+saude_infantil <- 5 * tratamento + rnorm(tamanho_amostra)
+
+# Data frame com as variáveis
+dados_impacto <- data.frame(tratamento, saude_infantil)
+
+# Comparar a média de saúde infantil entre os grupos
+aggregate(saude_infantil ~ tratamento, data = dados_impacto, mean)
+
+# Regressão simples para medir o impacto do tratamento
+modelo <- lm(saude_infantil ~ tratamento, data = dados_impacto)
+summary(modelo)
+```
+
+
+3.
+3.1.
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+# Gerar covariáveis aleatórias (idade e educação)
+idade <- rnorm(tamanho_amostra, mean = 35, sd = 10)
+educacao <- rnorm(tamanho_amostra, mean = 12, sd = 2)
+
+# Atribuindo aleatoriamente participantes ao tratamento (programa de capacitação)
+tratamento <- rbinom(tamanho_amostra, 1, 0.5)  # 50% recebem o tratamento, 50% não recebem
+
+# Supomos que o tratamento aumenta o salário em 500 unidades monetárias
+salario <- 2000 + 500 * tratamento + 100 * idade + 200 * educacao + rnorm(tamanho_amostra, sd = 500)
+
+# Criar data frame
+dados <- data.frame(tratamento, idade, educacao, salario)
+
+# Verificar a média dos salários para o grupo de tratamento e controle
+media_salario_tratamento <- mean(dados$salario[dados$tratamento == 1])
+media_salario_controle <- mean(dados$salario[dados$tratamento == 0])
+
+cat("Média salarial - Tratamento:", media_salario_tratamento, "\n")
+cat("Média salarial - Controle:", media_salario_controle, "\n")
+
+# Diferença nos salários entre os grupos de tratamento e controle (impacto causal)
+impacto_causal <- media_salario_tratamento - media_salario_controle
+cat("Impacto Causal Estimado do Programa de Capacitação:", impacto_causal, "\n")
+```
+
+3.2.
+```{r}
+library(ggplot2)
+library(dplyr)
+
+tamanho_amostra <- 1000
+set.seed(123)
+
+# Teste t para idade
+idade_tratamento <- dados$idade[dados$tratamento == 1]
+idade_controle <- dados$idade[dados$tratamento == 0]
+t_test_idade <- t.test(idade_tratamento, idade_controle)
+cat("Teste t para Idade: p-valor =", t_test_idade$p.value, "\n")
+
+# Teste t para educação
+educacao_tratamento <- dados$educacao[dados$tratamento == 1]
+educacao_controle <- dados$educacao[dados$tratamento == 0]
+t_test_educacao <- t.test(educacao_tratamento, educacao_controle)
+cat("Teste t para Educação: p-valor =", t_test_educacao$p.value, "\n")
+
+# Gráfico de densidade para idade
+ggplot(dados, aes(x = idade, fill = factor(tratamento))) +
+  geom_density(alpha = 0.5) +
+  labs(title = "Distribuição de Idade entre Tratamento e Controle", x = "Idade", fill = "Tratamento")
+
+# Gráfico de boxplot para educação
+ggplot(dados, aes(x = factor(tratamento), y = educacao, fill = factor(tratamento))) +
+  geom_boxplot() +
+  labs(title = "Boxplot de Educação por Grupo", x = "Tratamento", y = "Educação")
+```
+
+3.4.
+A)
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+# Gerar um vetor de randomização com probabilidades iguais
+grupo_tratamento <- sample(c(0, 1), size = tamanho_amostra, replace = TRUE)
+
+# Contar quantos indivíduos foram alocados para cada grupo
+table(grupo_tratamento)
+```
+
+B)
+```{r}
+tamanho_amostra <- 1000
+n_tratamento <- 500
+set.seed(123)
+
+# Atribuição aleatória dos indivíduos para tratamento e controle
+grupo_tratamento <- sample(c(rep(1, n_tratamento), rep(0, tamanho_amostra - n_tratamento)))
+
+# Contagem de participantes nos grupos de tratamento e controle
+table(grupo_tratamento)
+```
+
+C)
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+# Variáveis de estratificação (ex: gênero)
+genero <- sample(c("Masculino", "Feminino"), size = tamanho_amostra, replace = TRUE)
+
+# Criar estratos e randomizar dentro de cada estrato
+grupo_tratamento <- ave(genero, genero, FUN = function(x) sample(c(0, 1), length(x), replace = TRUE))
+
+# Verificar a alocação de tratamento por gênero
+table(genero, grupo_tratamento)
+```
+
+D)
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+# Tamanho do cluster (número de escolas)
+n_escolas <- 50
+escolas <- 1:n_escolas
+
+# Aleatorizar por cluster (escolas)
+grupo_tratamento <- sample(c(0, 1), size = n_escolas, replace = TRUE)
+
+# Verificar distribuição de escolas entre tratamento e controle
+table(grupo_tratamento)
+```
+
+
+E)
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+# Gerar dois tratamentos independentes (A e B)
+tratamento_A <- sample(c(0, 1), size = tamanho_amostra, replace = TRUE)
+tratamento_B <- sample(c(0, 1), size = tamanho_amostra, replace = TRUE)
+
+# Combinar os tratamentos em uma estrutura fatorial
+table(tratamento_A, tratamento_B)
+```
+
+F)
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+# Probabilidade de ser atribuído ao tratamento
+p <- 0.5
+
+# Atribuição de tratamento usando uma distribuição de Bernoulli
+grupo_tratamento <- rbinom(tamanho_amostra, 1, p)
+
+# Contagem de participantes nos grupos de tratamento e controle
+table(grupo_tratamento)
+```
+
+G)
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+# Idade (usada para parear os participantes)
+idade <- sample(25:45, size = tamanho_amostra, replace = TRUE)
+
+# Ordenar os participantes por idade
+idade_ordenada <- sort(idade)
+
+# Parear os participantes (pares de 2)
+pares <- matrix(idade_ordenada, ncol = 2, byrow = TRUE)
+
+# Atribuir tratamento aleatoriamente dentro de cada par
+grupo_tratamento <- t(apply(pares, 1, function(x) sample(c(0, 1))))
+
+# Mostrar os pares e suas alocações ao tratamento
+resultado <- cbind(pares, grupo_tratamento)
+print(resultado)
+```
+
+3.8.
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+nivel_significancia <- 0.05
+poder <- 0.80
+desvio_padrao <- 1000
+
+# Valores críticos
+z_alpha <- qnorm(1 - nivel_significancia / 2)  # Valor crítico para nível de significância
+z_beta <- qnorm(poder)  # Valor crítico para poder estatístico
+
+# Calcular MDE
+MDE <- (z_alpha + z_beta) * (desvio_padrao / sqrt(tamanho_amostra))
+
+# Exibir o resultado
+cat("O Efeito Mínimo Detectável (MDE) é:", round(MDE, 2), "\n")
+```
+
+
+4.
+4.1.
+```{r}
+tamanho_amostra <- 1000
+
+# Variáveis para o período e tratamento
+periodo <- rep(c(0, 1), each = tamanho_amostra/2)  # 0 = antes, 1 = depois
+tratamento <- rep(c(0, 1), times = tamanho_amostra/2)  # 0 = controle, 1 = tratamento
+
+# Parâmetros
+efeito_tratamento <- 10  # Efeito do tratamento
+intercepto <- 50  # Intercepto base
+efeito_periodo <- 2  # Efeito do período (antes/depous)
+efeito_grupo_tratamento <- 5  # Efeito do grupo de tratamento
+
+# Gerando a variável produtividade com um efeito adicional do tratamento no período pós
+produtividade <- intercepto + efeito_periodo * periodo + efeito_grupo_tratamento * tratamento + efeito_tratamento * (periodo * tratamento) + rnorm(tamanho_amostra, 0, 5)
+
+# Criar data frame
+dados <- data.frame(periodo, tratamento, produtividade)
+
+# Estimar o modelo DiD
+modelo_did <- lm(produtividade ~ periodo * tratamento, data = dados)
+
+summary(modelo_did)
+```
+
+4.1.1.
+A)
+```{r}
+data(mpdta)
+out1 <- att_gt(yname = "lemp",
+        tname  = "year",
+        idname = "countyreal",
+        gname = "first.treat",
+        xformla = NULL,
+        data=mpdta)
+summary(out1)
+```
+
+B)
+```{r}
+out2 <- att_gt(yname = "lemp",
+        tname = "year",
+        idname = "countyreal",
+        gname = "first.treat",
+        xformla = ~ lpop,
+        data = mpdta)
+summary(out2)
+```
+
+4.2.
+```{r}
+#install.packages("rdrobust")
+library(rdrobust)
+
+renda <- runif(tamanho_amostra, 1500, 2500)  # Renda das famílias
+tratamento <- ifelse(renda < 2000, 1, 0)  # Definir o ponto de corte em 2000
+gasto_educacao <- 200 + 0.1 * renda + 100 * tratamento + rnorm(tamanho_amostra, 0, 50)  # Gasto em educação
+
+# Estimar o efeito da RDD usando o pacote rdrobust
+rdd_result <- rdrobust(y = gasto_educacao, x = renda, c = 2000)
+summary(rdd_result)
+```
+
+4.3.
+A)
+```{r}
+# install.packages("Synth")
+library(Synth)
+
+anos <- 2000:2010
+n <- length(anos)
+
+# Criação do dataframe completo com os dados de desemprego para cada estado e ano
+estados <- data.frame(
+  ano = rep(anos, 4),
+  estado = rep(c("Estado_A", "Estado_B", "Estado_C", "Estado_D"), each = n),
+  desemprego = c(6.4, 6.2, 6.1, 6.0, 5.9, 5.8, 5.7, 5.6, 5.5, 5.4, 5.3,  # Estado_A - Controle
+                 6.6, 6.5, 6.3, 6.2, 6.1, 6.0, 5.9, 5.8, 5.7, 5.6, 5.5,  # Estado_B - Controle
+                 6.8, 6.7, 6.5, 6.4, 6.3, 6.1, 6.0, 5.9, 5.8, 5.6, 5.5,  # Estado_C - Controle
+                 6.5, 6.3, 6.2, 5.9, 5.8, 5.7, 5.5, 5.3, 5.2, 5.0, 4.8))  # Estado_D - Tratado
+
+# Criar identificador numérico único para cada estado
+estados$estado_id <- as.numeric(factor(estados$estado))
+
+# Identificar o estado tratado e os de controle
+estados$grupo <- ifelse(estados$estado == "Estado_D", "Tratado", "Controle")
+
+# Plotar os dados
+ggplot(estados, aes(x = ano, y = desemprego, color = estado, linetype = grupo)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Taxa de Desemprego: Estado Tratado vs Controles",
+    x = "Ano",
+    y = "Taxa de Desemprego") +
+  scale_color_manual(values = c("Estado_A" = "blue", "Estado_B" = "green", "Estado_C" = "purple", "Estado_D" = "red")) +
+  scale_linetype_manual(values = c("Tratado" = "solid", "Controle" = "dashed")) +
+  theme_minimal() +
+  theme(legend.title = element_blank())
+```
+
+B)
+```{r}
+# Preparar os dados para o Synth
+dataprep.out <- dataprep(
+  foo = estados,
+  predictors = "desemprego",
+  predictors.op = "mean",
+  time.predictors.prior = 2000:2005,       # Período antes do tratamento
+  special.predictors = list(
+    list("desemprego", 2000, "mean"),
+    list("desemprego", 2001, "mean"),
+    list("desemprego", 2002, "mean"),
+    list("desemprego", 2003, "mean"),
+    list("desemprego", 2004, "mean"),
+    list("desemprego", 2005, "mean")),
+  dependent = "desemprego",
+  unit.variable = "estado_id",
+  time.variable = "ano",
+  treatment.identifier = estados$estado_id[estados$estado == "Estado_D"][1],  # ID numérico do Estado_D
+  controls.identifier = unique(estados$estado_id[estados$estado %in% c("Estado_A", "Estado_B", "Estado_C")]),
+  time.optimize.ssr = 2000:2005,           # Período para otimizar os pesos
+  unit.names.variable = "estado",
+  time.plot = 2000:2010)
+
+# Rodar a síntese
+synth.out <- synth(dataprep.out)
+
+# Resultados
+synth.tables <- synth.tab(dataprep.res = dataprep.out, synth.res = synth.out)
+print(synth.tables)
+
+# Plotar os resultados
+path.plot(dataprep.res = dataprep.out, synth.res = synth.out, Ylab = "Taxa de Desemprego", Xlab = "Ano", Main = "Efeito do Tratamento sobre a Taxa de Desemprego")
+```
+
+
+5.
+5.2.
+```{r}
+library("MatchIt")
+data("lalonde")
+
+m.out0 <- matchit(treat ~ age + educ + race + married + 
+                   nodegree + re74 + re75, data = lalonde,
+                 method = NULL, distance = "glm")
+summary(m.out0)
+```
+
+5.3.
+5.3.1.
+```{r}
+m.out1 <- matchit(treat ~ age + educ + race + married + 
+                   nodegree + re74 + re75, data = lalonde,
+                 method = "nearest", distance = "glm")
+```
+
+5.4.
+A)
+```{r}
+# Verificando o equilíbrio após o pareamento NN
+summary(m.out1, un = FALSE)
+```
+
+B)
+```{r}
+plot(m.out1, type = "jitter")
+```
+
+C)
+```{r}
+plot(m.out1, type = "density", interactive = FALSE, 
+     which.xs = ~age + married + re75)
+```
+
+
+5.5.
+```{r}
+# Pareamento completo com modelo probit para o escore de propensão
+m.out2 <- matchit(treat ~ age + educ + race + married + 
+                   nodegree + re74 + re75, data = lalonde,
+                 method = "full", distance = "glm", link = "probit")
+m.out2
+summary(m.out2, un = FALSE)
+plot(summary(m.out2))
+```
+
+5.6.
+A)
+```{r}
+m.data <- match.data(m.out2)
+```
+
+B)
+```{r}
+library("marginaleffects")
+
+fit <- lm(re78 ~ treat * (age + educ + race + married + nodegree + re74 + re75), data = m.data, weights = weights)
+
+avg_comparisons(fit,
+                variables = "treat",
+                vcov = ~subclass,
+                newdata = subset(m.data, treat == 1),
+                wts = "weights")
+```
+
+
+6.
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+library(AER)
+
+# Variável instrumental - condições climáticas (Z)
+Z <- rbinom(tamanho_amostra, 1, 0.3)  # 1 para tempestade, 0 caso contrário
+
+# Variável endógena - preço do peixe (W), afetado por Z (tempestade)
+W <- 15 - 3 * Z + rnorm(tamanho_amostra)
+
+# Variável dependente - quantidade demandada (Y), afetada pelo preço W
+Y <- 200 - 10 * W + rnorm(tamanho_amostra)
+
+# Verificando a correlação entre W e Z
+cor(W, Z)  # Deve mostrar uma correlação relevante entre tempestades e preços
+
+# Modelo de variáveis instrumentais para estimar a demanda por peixe
+modelo_iv <- ivreg(Y ~ W | Z)
+summary(modelo_iv)
+```
+
+
+7.
+7.1.
+A)
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+library(plm)
+
+# Criando dados simulados
+data <- data.frame(
+  individuos = rep(1:tamanho_amostra, each = 5),
+  tempo = rep(1:5, tamanho_amostra),
+  x = rnorm(50),
+  y = rnorm(50) + rep(1:tamanho_amostra, each = 5))
+pdata <- pdata.frame(data, index = c("individuos", "tempo"))
+```
+
+B)
+```{r}
+# Modelo de Efeitos Fixos de Unidade
+modelo_fe <- plm(y ~ x, data = pdata, model = "within")
+summary(modelo_fe)
+```
+
+C)
+```{r}
+# Modelo sem Efeitos Fixos (pooled)
+modelo_pooled <- plm(y ~ x, data = pdata, model = "pooling")
+summary(modelo_pooled)
+```
+
+7.2.
+```{r}
+# Modelo de Efeitos Aleatórios
+modelo_re <- plm(y ~ x, data = pdata, model = "random")
+summary(modelo_re)
+```
+
+7.3.
+```{r}
+# Teste de Hausman para escolher entre efeitos fixos e aleatórios
+hausman_test <- phtest(modelo_fe, modelo_re)
+print(hausman_test)
+```
+
+
+7.4.
+A)
+```{r}
+tamanho_amostra <- 1000
+periodos <- 5
+set.seed(123)
+
+# Criando um data frame para dados de painel
+dados_painel <- data.frame(
+  tempo = rep(1:periodos, each = tamanho_amostra),  # Período de 5 anos
+  individuos = rep(1:tamanho_amostra, times = periodos),
+  x = rnorm(tamanho_amostra * periodos, mean = 100, sd = 500))
+
+dados_painel$y <- NA # Variável dependente y com autocorrelação
+
+# Inicializando `y` para o primeiro período de cada indivíduo
+dados_painel$y[dados_painel$tempo == 1] <- rnorm(tamanho_amostra, mean = 500, sd = 100)
+
+# Criando `y` como função de y defasado e x para os períodos subsequentes
+for (t in 2:periodos) {
+  subset_index <- dados_painel$tempo == t
+  lag_y <- dados_painel$y[dados_painel$tempo == (t - 1)]  # Valor defasado de `y`
+  dados_painel$y[subset_index] <- 0.7 * lag_y + 0.3 * dados_painel$x[subset_index] + rnorm(tamanho_amostra, mean = 0, sd = 50)}
+pdata <- pdata.frame(dados_painel, index = c("individuos", "tempo"))
+```
+
+```{r}
+# Modelo GMM dinâmico
+modelo_gmm <- pgmm(y ~ lag(y, 1) + x | 
+                   lag(y, 2), 
+                   data = pdata, effect = "individual", model = "twosteps")
+summary(modelo_gmm)
+```
+
+7.5.
+A)
+```{r}
+tamanho_amostra <- 1000
+set.seed(123)
+
+library(plm)
+
+# Criar uma lista para armazenar os períodos para cada indivíduo
+tempos <- lapply(1:tamanho_amostra, function(i) sample(1:5, sample(3:5, 1), replace = FALSE))
+tempo <- unlist(tempos) # Empilhando os períodos de tempo numa única variável
+
+# Criar uma lista de indivíduos com a mesma estrutura de 'tempos'
+individuos <- rep(1:tamanho_amostra, sapply(tempos, length))
+
+# Criar o dataframe de painel não balanceado
+dados_painel_nb <- data.frame(
+  individuos = individuos,
+  tempo = tempo,
+  variavel_dependente = rnorm(length(tempo), mean = 50, sd = 10),
+  variavel_independente = rnorm(length(tempo), mean = 10, sd = 5))
+```
+
+B)
+```{r}
+# Transformar os dados em um painel não balanceado
+dados_painel_nb <- pdata.frame(dados_painel_nb, index = c("individuos", "tempo"))
+
+# Estimando um modelo de efeitos aleatórios com painel não balanceado
+modelo_re_nb <- plm(variavel_dependente ~ variavel_independente, data = dados_painel_nb, model = "random")
+summary(modelo_re_nb)
+```
