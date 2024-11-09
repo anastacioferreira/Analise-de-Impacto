@@ -1,4 +1,4 @@
-Este repositório reúne todos os materiais necessários para acompanhar o manual "Análise de Impacto com". Aqui estão disponíveis tanto os arquivos .rmd quanto as bases de dados empregadas ao longo do conteúdo apresentado.
+Este repositório reúne todos os materiais necessários para acompanhar o manual "Análise de Impacto com R". Aqui estão disponíveis os arquivos .Rmd e as bases de dados empregadas ao longo do conteúdo apresentado.
 
 O manual foi  desenvolvido para oferecer uma introdução prática à análise de impacto utilizando R.
 
